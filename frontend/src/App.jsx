@@ -22,7 +22,7 @@ import VODsPage from './pages/VODs';
 import useAuthStore from './store/auth';
 import FloatingVideo from './components/FloatingVideo';
 import { WebsocketProvider } from './WebSocket';
-import { Box, AppShell, MantineProvider } from '@mantine/core';
+import { Box, AppShell, MantineProvider, Burger } from '@mantine/core';
 import '@mantine/core/styles.css'; // Ensure Mantine global styles load
 import '@mantine/notifications/styles.css';
 import '@mantine/dropzone/styles.css';
@@ -39,7 +39,11 @@ const miniDrawerWidth = 60;
 const defaultRoute = '/channels';
 
 const App = () => {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(() => {
+    // Start collapsed on mobile, open on desktop
+    return window.innerWidth > 768;
+  });
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isInitialized = useAuthStore((s) => s.isInitialized);
   const setIsAuthenticated = useAuthStore((s) => s.setIsAuthenticated);
@@ -54,6 +58,23 @@ const App = () => {
   const toggleDrawer = () => {
     setOpen(!open);
   };
+
+  // Handle window resize for mobile detection
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      // Auto-collapse on mobile, auto-expand on desktop
+      if (mobile && open) {
+        setOpen(false);
+      } else if (!mobile && !open) {
+        setOpen(true);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [open]);
 
   // Check if a superuser exists on first load.
   useEffect(() => {
@@ -134,6 +155,34 @@ const App = () => {
             )}
 
             <AppShell.Main>
+              {/* Mobile overlay when menu is open */}
+              {isMobile && open && (
+                <Box
+                  className="mobile-menu-overlay active"
+                  onClick={() => setOpen(false)}
+                />
+              )}
+
+              {/* Hamburger menu button for mobile */}
+              {isMobile && isAuthenticated && isInitialized && (
+                <Box
+                  style={{
+                    position: 'fixed',
+                    top: 16,
+                    left: 16,
+                    zIndex: 1001,
+                  }}
+                >
+                  <Burger
+                    opened={open}
+                    onClick={toggleDrawer}
+                    size="md"
+                    color="#fff"
+                    aria-label="Toggle navigation"
+                  />
+                </Box>
+              )}
+
               <Box
                 style={{
                   display: 'flex',
@@ -142,6 +191,7 @@ const App = () => {
                   backgroundColor: '#18181b',
                   height: '100vh',
                   color: 'white',
+                  paddingTop: isMobile ? '60px' : '0', // Space for hamburger menu
                 }}
               >
                 <Box sx={{ p: 2, flex: 1, overflow: 'auto' }}>
