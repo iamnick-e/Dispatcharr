@@ -42,13 +42,14 @@ import { USER_LEVELS } from '../constants';
 import UserForm from './forms/User';
 import NotificationCenter from './NotificationCenter';
 
-const NavLink = ({ item, isActive, collapsed }) => {
+const NavLink = ({ item, isActive, collapsed, onClick }) => {
   return (
     <UnstyledButton
       key={item.path}
       component={Link}
       to={item.path}
       className={`navlink ${isActive ? 'navlink-active' : ''} ${collapsed ? 'navlink-collapsed' : ''}`}
+      onClick={onClick}
     >
       {item.icon}
       {!collapsed && (
@@ -74,7 +75,7 @@ const NavLink = ({ item, isActive, collapsed }) => {
   );
 };
 
-function NavGroup({ label, icon, paths, location, collapsed }) {
+function NavGroup({ label, icon, paths, location, collapsed, onLinkClick }) {
   const [open, setOpen] = useState(() =>
     location.pathname.startsWith('/connect')
   );
@@ -131,6 +132,7 @@ function NavGroup({ label, icon, paths, location, collapsed }) {
                     item={child}
                     isActive={active}
                     collapsed={collapsed}
+                    onClick={onLinkClick}
                   />
                 </Box>
               );
@@ -157,6 +159,13 @@ const Sidebar = ({ collapsed, toggleDrawer, drawerWidth, miniDrawerWidth }) => {
   const [userFormOpen, setUserFormOpen] = useState(false);
 
   const closeUserForm = () => setUserFormOpen(false);
+
+  // Close sidebar on mobile when navigating
+  const handleLinkClick = () => {
+    if (window.innerWidth <= 768 && !collapsed) {
+      toggleDrawer();
+    }
+  };
 
   // Navigation Items
   const navItems =
@@ -249,6 +258,7 @@ const Sidebar = ({ collapsed, toggleDrawer, drawerWidth, miniDrawerWidth }) => {
     <AppShell.Navbar
       width={{ base: collapsed ? miniDrawerWidth : drawerWidth }}
       p="xs"
+      data-mobile-open={!collapsed}
       style={{
         backgroundColor: '#1A1A1E',
         // transition: 'width 0.3s ease',
@@ -315,6 +325,7 @@ const Sidebar = ({ collapsed, toggleDrawer, drawerWidth, miniDrawerWidth }) => {
                   location={location}
                   collapsed={collapsed}
                   icon={item.icon}
+                  onLinkClick={handleLinkClick}
                 />
               );
             }
@@ -327,6 +338,7 @@ const Sidebar = ({ collapsed, toggleDrawer, drawerWidth, miniDrawerWidth }) => {
                 item={item}
                 collapsed={collapsed}
                 isActive={isActive}
+                onClick={handleLinkClick}
               />
             );
           })}

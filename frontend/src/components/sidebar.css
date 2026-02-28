@@ -56,3 +56,28 @@
   pointer-events: none;
   z-index: 2;
 }
+
+/* ===== MOBILE SIDEBAR STYLES ===== */
+
+@media (max-width: 768px) {
+  /* Make sidebar full height on mobile */
+  .mantine-AppShell-navbar {
+    height: 100vh !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: -100% !important;
+    transition: left 0.3s ease-in-out !important;
+    z-index: 1000 !important;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Show sidebar when open on mobile */
+  .mantine-AppShell-navbar[data-mobile-open="true"] {
+    left: 0 !important;
+  }
+
+  /* Ensure navigation items are visible on mobile */
+  .navlink {
+    min-height: 48px !important; /* Larger touch targets */
+  }
+}

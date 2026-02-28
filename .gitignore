@@ -20,4 +20,4 @@ uwsgi.sock
 package-lock.json
 models
 .idea
-uv.lock
+uv.lockdocker/data-dev/
