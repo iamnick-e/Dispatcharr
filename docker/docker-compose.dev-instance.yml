@@ -1,0 +1,135 @@
+# Dispatcharr Dev Instance - Multi-Account Pooling Test
+# Separate instance for testing fork development
+# Production: ports 9191, 5436
+# Dev: ports 9192, 5437
+
+services:
+  # ============================================================================
+  # Web Service (Dev)
+  # ============================================================================
+  web-dev:
+    image: ghcr.io/dispatcharr/dispatcharr:latest
+    container_name: dispatcharr_web_dev
+    restart: unless-stopped
+    ports:
+      - 9192:9191  # Dev port
+    volumes:
+      - ./data-dev:/data
+      - ../:/app/dispatcharr-dev:ro  # Mount source for live development
+    depends_on:
+      - db-dev
+      - redis-dev
+
+    environment:
+      # Deployment Mode
+      - DISPATCHARR_ENV=modular
+
+      # Django Secret Key (required)
+      - SECRET_KEY=3hYXQO6XjLqAK7zu4BlsZ5tjqm2/Me17FV3NwDT7UcgcAjpAkb0ZXNuUD7W1abnYnno=
+
+      # PostgreSQL Connection (Dev)
+      - POSTGRES_HOST=db-dev
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=dispatcharr_dev
+      - POSTGRES_USER=dispatch_dev
+      - POSTGRES_PASSWORD=dev_secret_2026
+
+      # Redis Connection (Dev)
+      - REDIS_HOST=redis-dev
+      - REDIS_PORT=6379
+
+      # Logging
+      - DISPATCHARR_LOG_LEVEL=debug  # Debug mode for dev
+
+      # Dev identifier
+      - INSTANCE_NAME=dispatcharr-dev
+
+  # ============================================================================
+  # Celery Service (Dev)
+  # ============================================================================
+  celery-dev:
+    image: ghcr.io/dispatcharr/dispatcharr:latest
+    container_name: dispatcharr_celery_dev
+    restart: unless-stopped
+    depends_on:
+      - db-dev
+      - redis-dev
+      - web-dev
+    volumes:
+      - ./data-dev:/data
+      - ../:/app/dispatcharr-dev:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    entrypoint: ["/app/docker/entrypoint.celery.sh"]
+
+    environment:
+      # Deployment Mode
+      - DISPATCHARR_ENV=modular
+
+      # Django Secret Key (required)
+      - SECRET_KEY=3hYXQO6XjLqAK7zu4BlsZ5tjqm2/Me17FV3NwDT7UcgcAjpAkb0ZXNuUD7W1abnYnno=
+
+      # PostgreSQL Connection (Dev)
+      - POSTGRES_HOST=db-dev
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=dispatcharr_dev
+      - POSTGRES_USER=dispatch_dev
+      - POSTGRES_PASSWORD=dev_secret_2026
+
+      # Redis Connection (Dev)
+      - REDIS_HOST=redis-dev
+      - REDIS_PORT=6379
+
+      # Logging
+      - DISPATCHARR_LOG_LEVEL=debug
+
+      # Django Configuration
+      - DJANGO_SETTINGS_MODULE=dispatcharr.settings
+      - PYTHONUNBUFFERED=1
+
+  # ============================================================================
+  # PostgreSQL (Dev)
+  # ============================================================================
+  db-dev:
+    image: postgres:17
+    container_name: dispatcharr_db_dev
+    restart: unless-stopped
+    ports:
+      - "5437:5432"  # Dev port
+    environment:
+      - POSTGRES_DB=dispatcharr_dev
+      - POSTGRES_USER=dispatch_dev
+      - POSTGRES_PASSWORD=dev_secret_2026
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dispatch_dev -d dispatcharr_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================================
+  # Redis (Dev)
+  # ============================================================================
+  redis-dev:
+    image: redis:latest
+    container_name: dispatcharr_redis_dev
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+# ==============================================================================
+# Volumes
+# ==============================================================================
+volumes:
+  postgres_data_dev:
+
+# ==============================================================================
+# Networks (Optional - isolate from production)
+# ==============================================================================
+networks:
+  default:
+    name: dispatcharr_dev_network
