@@ -47,6 +47,10 @@ class RedisClient:
 
     @classmethod
     def get_client(cls, max_retries=5, retry_interval=1):
+        # In test environments, don't block on Redis retries
+        if os.environ.get("DISPATCHARR_TESTING"):
+            max_retries = 1
+            retry_interval = 0
         if cls._client is None:
             retry_count = 0
             while retry_count < max_retries:

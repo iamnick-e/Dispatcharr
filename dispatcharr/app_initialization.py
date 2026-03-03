@@ -33,10 +33,16 @@ def should_skip_initialization():
     # Skip management commands and background services
     skip_commands = [
         'celery', 'beat', 'migrate', 'makemigrations', 'shell', 'dbshell',
-        'collectstatic', 'loaddata'
+        'collectstatic', 'loaddata',
+        # Test runners – skip expensive startup tasks during unit tests
+        'pytest', 'py.test', '_jb_pytest_runner.py', 'test',
     ]
     if any(cmd in sys.argv for cmd in skip_commands):
         logger.debug(f"Skipping initialization due to command: {sys.argv}")
+        return True
+
+    # Also skip when the DISPATCHARR_TESTING env var is set
+    if os.environ.get("DISPATCHARR_TESTING"):
         return True
 
     # Skip daphne development server (single process, no need to guard)

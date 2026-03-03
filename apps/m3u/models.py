@@ -235,6 +235,152 @@ class ServerGroup(models.Model):
         return self.name
 
 
+# ---------------------------------------------------------------------------
+# Multi-Account Pooling models (Phase 1)
+# ---------------------------------------------------------------------------
+
+
+class AccountPool(models.Model):
+    """Groups multiple M3U accounts into a pool for load-balanced stream delivery."""
+
+    class Strategy(models.TextChoices):
+        ROUND_ROBIN = "round_robin", "Round Robin"
+        LEAST_USED = "least_used", "Least Used"
+        SEQUENTIAL = "sequential", "Sequential"
+
+    name = models.CharField(
+        max_length=255,
+        unique=True,
+        help_text="Unique name for this account pool.",
+    )
+    description = models.TextField(
+        blank=True,
+        default="",
+        help_text="Optional description of the pool's purpose.",
+    )
+    provider = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Provider/service name used to group pools (e.g. 'PlutoTV', 'MyIPTV').",
+    )
+    strategy = models.CharField(
+        max_length=20,
+        choices=Strategy.choices,
+        default=Strategy.ROUND_ROBIN,
+        help_text="Strategy used when selecting an account from the pool.",
+    )
+    max_streams_per_account = models.IntegerField(
+        default=1,
+        help_text="Maximum concurrent streams allowed per account in this pool.",
+    )
+    enabled = models.BooleanField(
+        default=True,
+        help_text="Disable to stop the pool from being used for stream assignment.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "Account Pool"
+        verbose_name_plural = "Account Pools"
+
+    def __str__(self):
+        return f"{self.name} ({self.get_strategy_display()})"
+
+    def active_accounts(self):
+        """Return accounts that are members of this pool and currently active."""
+        return M3UAccount.objects.filter(
+            pool_memberships__pool=self,
+            is_active=True,
+        )
+
+
+class AccountPoolMembership(models.Model):
+    """Through table recording which accounts belong to which pool, with priority."""
+
+    pool = models.ForeignKey(
+        AccountPool,
+        on_delete=models.CASCADE,
+        related_name="memberships",
+        help_text="The pool this membership belongs to.",
+    )
+    account = models.ForeignKey(
+        M3UAccount,
+        on_delete=models.CASCADE,
+        related_name="pool_memberships",
+        help_text="The M3U account that is a member of the pool.",
+    )
+    priority = models.PositiveIntegerField(
+        default=0,
+        help_text="Lower numbers = higher priority (used by sequential strategy).",
+    )
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["priority", "added_at"]
+        unique_together = [("pool", "account")]
+        verbose_name = "Account Pool Membership"
+        verbose_name_plural = "Account Pool Memberships"
+
+    def __str__(self):
+        return f"{self.account.name} → {self.pool.name} (priority {self.priority})"
+
+
+class StreamAssignment(models.Model):
+    """Tracks which pool/account is serving a given stream."""
+
+    pool = models.ForeignKey(
+        AccountPool,
+        on_delete=models.CASCADE,
+        related_name="stream_assignments",
+        help_text="The pool that owns this assignment.",
+    )
+    account = models.ForeignKey(
+        M3UAccount,
+        on_delete=models.CASCADE,
+        related_name="stream_assignments",
+        help_text="The specific account serving this stream.",
+    )
+    stream_id = models.CharField(
+        max_length=512,
+        help_text="Opaque identifier for the stream being served (e.g. channel ID or URL hash).",
+    )
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    released_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Set when the stream is released; null means the assignment is still active.",
+    )
+    active = models.BooleanField(
+        default=True,
+        help_text="False when the stream has been released.",
+        db_index=True,
+    )
+
+    class Meta:
+        ordering = ["-assigned_at"]
+        verbose_name = "Stream Assignment"
+        verbose_name_plural = "Stream Assignments"
+        indexes = [
+            models.Index(fields=["pool", "active"]),
+            models.Index(fields=["account", "active"]),
+        ]
+
+    def __str__(self):
+        status = "active" if self.active else "released"
+        return f"[{status}] {self.stream_id} → {self.account.name} (pool: {self.pool.name})"
+
+    def release(self):
+        """Mark this assignment as released."""
+        from django.utils import timezone
+
+        self.released_at = timezone.now()
+        self.active = False
+        self.save(update_fields=["released_at", "active"])
+
+
 class M3UAccountProfile(models.Model):
     """Represents a profile associated with an M3U Account."""
 
